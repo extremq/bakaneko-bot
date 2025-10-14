@@ -7,7 +7,6 @@ import os
 
 load_dotenv()
 
-# Define the fortunes
 FORTUNES = ["大吉", "吉", "中吉", "小吉", "末吉", "凶", "大凶"]
 
 class UranaiBot(discord.Client):
