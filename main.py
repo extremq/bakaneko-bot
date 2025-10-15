@@ -9,7 +9,7 @@ import re
 
 load_dotenv()
 
-FORTUNES = ["大吉", "吉", "中吉", "小吉", "末吉", "凶", "大凶"]
+FORTUNES = ["大吉 :heart_eyes_cat:", "吉 :smiley:", "中吉 :+1:", "小吉 :pensive:", "末吉 :thinking:", "凶 :worried:", "大凶 :skull:"]
 
 class UranaiBot(discord.Client):
     def __init__(self):
@@ -27,13 +27,11 @@ bot = UranaiBot()
 
 
 def get_japan_date():
-    # JST is UTC+9
     jst = timezone(timedelta(hours=9))
     return datetime.now(jst).date()
 
 
 def get_daily_fortune(user_id: int) -> str:
-    # Use user_id and today's date in Japan as seed
     seed = f"{user_id}{get_japan_date()}"
     random.seed(seed)
     return random.choice(FORTUNES)
@@ -65,7 +63,12 @@ async def translate_command(interaction: discord.Interaction, message: str, targ
         data = response.json()
         translated = data["translations"][0]["text"]
         detected_language = data["translations"][0]["detected_source_language"]
-        await interaction.response.send_message(f"{detected_language} -> {target_language}:\n{translated}")
+        message = f"## **{detected_language} → {target_language}**:\n> {translated}"
+
+        if len(message) > 2000:
+            message = message[:1997] + "..."
+
+        await interaction.response.send_message(message)
     except Exception as e:
         await interaction.response.send_message("翻訳に失敗しました.")
         print(e)
@@ -82,7 +85,7 @@ async def dice_command(interaction: discord.Interaction, dice_list: str):
         await interaction.response.send_message("一度に振れるダイスの種類は10個までです。")
         return
 
-    message = "サイコロを振ってみましょう！\n"
+    message = "## **サイコロを振ってみましょう！**\n"
 
     total_sum = 0
     for num, faces in matches:
@@ -95,16 +98,53 @@ async def dice_command(interaction: discord.Interaction, dice_list: str):
 
         rolls = [random.randint(1, faces) for _ in range(num)]
         total_sum += sum(rolls)
-        message += f"- `{num}d{faces}`: `{rolls}` (合計: {sum(rolls)})\n"
+        message += f"- {num}d{faces}: {", ".join(map(str, rolls))} (合計: {sum(rolls)})\n"
 
-    message += f"**全体の合計: {total_sum}**\n"
+    message += f"全体の合計: {total_sum}\n"
     await interaction.response.send_message(message)
 
-bot.tree.command(name="uranai", description="Tell your fortune!")(uranai_command)
-bot.tree.command(name="うらない", description="おみくじを引きます！")(uranai_command)
-bot.tree.command(name="translate", description="Can translate to Japanese, or to other language using `target_language` (ex: RO, EN, FR).")(translate_command)
-bot.tree.command(name="ほんやく", description="日本語に翻訳することも、`target_language` を使用して他の言語に翻訳することもできます (例: RO、EN、FR)。")(translate_command)
-bot.tree.command(name="dice", description="Roll dice in the format xdy (e.g. 1d6 2d20 d10)")(dice_command)
-bot.tree.command(name="ダイス", description="ダイスを振ります(例: 1d6 2d20 d10)")(dice_command)
+async def help_command(interaction: discord.Interaction):
+    help_message = "## **利用可能なコマンド:**\n"
+    for cmd, info in COMMANDS.items():
+        help_message += f"- /{cmd}: {info['hint']}\n"
+    await interaction.response.send_message(help_message)
+
+
+
+################# commands
+
+COMMANDS = {
+    "uranai": {
+        "hint": "Tell your fortune!",
+        "function": uranai_command
+    },
+    "うらない": {
+        "hint": "おみくじを引きます！",
+        "function": uranai_command
+    },
+    "translate": {
+        "hint": "Can translate to Japanese, or to other language using `target_language` (ex: RO, EN, FR).",
+        "function": translate_command
+    },
+    "ほんやく": {
+        "hint": "日本語に翻訳することも、`target_language` を使用して他の言語に翻訳することもできます (例: RO、EN、FR)。",
+        "function": translate_command
+    },
+    "dice": {
+        "hint": "Roll dice in the format xdy (e.g. 1d6 2d20 d10)",
+        "function": dice_command
+    },
+    "ダイス": {
+        "hint": "ダイスを振ります(例: 1d6 2d20 d10)",
+        "function": dice_command
+    },
+    "help": {
+        "hint": "利用可能なすべてのコマンドとその説明を表示します。",
+        "function": help_command
+    }
+}
+
+for k, v in COMMANDS.items():
+    bot.tree.command(name=k, description=v["hint"])(v["function"])
 
 bot.run(os.getenv("DISCORD_TOKEN"))
