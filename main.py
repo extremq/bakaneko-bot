@@ -3,12 +3,14 @@ from discord import app_commands
 import random
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+import requests
 import os
 
 load_dotenv()
 
 FORTUNES = ["大吉", "吉", "中吉", "小吉", "末吉", "凶", "大凶"]
 
+guild = discord.Object(id=974203519538171944)
 
 class UranaiBot(discord.Client):
     def __init__(self):
@@ -16,7 +18,8 @@ class UranaiBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        await self.tree.sync()
+        self.tree.clear_commands(guild=guild)
+        await self.tree.sync(guild=guild)
 
     async def on_ready(self):
         print(f"Logged in as {self.user}")
@@ -43,7 +46,36 @@ async def uranai_command(interaction: discord.Interaction):
     await interaction.response.send_message(fortune)
 
 
+async def translate_command(interaction: discord.Interaction, message: str, target_language: str = "JA"):
+    api_key = os.getenv("DEEPL_TOKEN")
+    if not api_key:
+        await interaction.response.send_message(
+            "翻訳サービスが構成されていません。"
+        )
+        return
+
+    url = "https://api-free.deepl.com/v2/translate"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"DeepL-Auth-Key {api_key}",
+    }
+    data = {"text": [message], "target_lang": target_language}
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        data = response.json()
+        translated = data["translations"][0]["text"]
+        detected_language = data["translations"][0]["detected_source_language"]
+        await interaction.response.send_message(f"{detected_language} -> {target_language}:\n\n{translated}")
+    except Exception as e:
+        await interaction.response.send_message("翻訳に失敗しました.")
+        print(e)
+
+
 bot.tree.command(name="uranai", description="Tell your fortune!")(uranai_command)
 bot.tree.command(name="うらない", description="おみくじを引きます！")(uranai_command)
+bot.tree.command(name="translate", description="Can translate to Japanese, or to other language using `target_language` (ex: RO, EN, FR).")(translate_command)
+bot.tree.command(name="ほんやく", description="日本語に翻訳することも、`target_language` を使用して他の言語に翻訳することもできます (例: RO、EN、FR)。")(translate_command)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
