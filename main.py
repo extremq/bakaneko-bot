@@ -5,12 +5,11 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import requests
 import os
+import re
 
 load_dotenv()
 
 FORTUNES = ["大吉", "吉", "中吉", "小吉", "末吉", "凶", "大凶"]
-
-guild = discord.Object(id=974203519538171944)
 
 class UranaiBot(discord.Client):
     def __init__(self):
@@ -18,8 +17,7 @@ class UranaiBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        self.tree.clear_commands(guild=guild)
-        await self.tree.sync(guild=guild)
+        await self.tree.sync()
 
     async def on_ready(self):
         print(f"Logged in as {self.user}")
@@ -67,15 +65,46 @@ async def translate_command(interaction: discord.Interaction, message: str, targ
         data = response.json()
         translated = data["translations"][0]["text"]
         detected_language = data["translations"][0]["detected_source_language"]
-        await interaction.response.send_message(f"{detected_language} -> {target_language}:\n\n{translated}")
+        await interaction.response.send_message(f"{detected_language} -> {target_language}:\n{translated}")
     except Exception as e:
         await interaction.response.send_message("翻訳に失敗しました.")
         print(e)
 
+async def dice_command(interaction: discord.Interaction, dice_list: str):
+    dice_pattern = re.compile(r'(\d*)d(\d+)')
+    matches = dice_pattern.findall(dice_list.lower())
+
+    if not matches:
+        await interaction.response.send_message("無効なダイス形式です。`1d6`, `2d20`, `d10` のような形式で入力してください。")
+        return
+    
+    if len(matches) > 10:
+        await interaction.response.send_message("一度に振れるダイスの種類は10個までです。")
+        return
+
+    message = "サイコロを振ってみましょう！\n"
+
+    total_sum = 0
+    for num, faces in matches:
+        num = int(num) if num else 1
+        faces = int(faces)
+
+        if num > 10:
+            await interaction.response.send_message(f"`{num}d{faces}`: 1回のコマンドで10回以上振ることはできません。\n")
+            return 
+
+        rolls = [random.randint(1, faces) for _ in range(num)]
+        total_sum += sum(rolls)
+        message += f"- `{num}d{faces}`: `{rolls}` (合計: {sum(rolls)})\n"
+
+    message += f"**全体の合計: {total_sum}**\n"
+    await interaction.response.send_message(message)
 
 bot.tree.command(name="uranai", description="Tell your fortune!")(uranai_command)
 bot.tree.command(name="うらない", description="おみくじを引きます！")(uranai_command)
 bot.tree.command(name="translate", description="Can translate to Japanese, or to other language using `target_language` (ex: RO, EN, FR).")(translate_command)
 bot.tree.command(name="ほんやく", description="日本語に翻訳することも、`target_language` を使用して他の言語に翻訳することもできます (例: RO、EN、FR)。")(translate_command)
+bot.tree.command(name="dice", description="Roll dice in the format xdy (e.g. 1d6 2d20 d10)")(dice_command)
+bot.tree.command(name="ダイス", description="ダイスを振ります(例: 1d6 2d20 d10)")(dice_command)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
