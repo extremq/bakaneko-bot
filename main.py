@@ -82,7 +82,7 @@ COMMANDS = {
         "function": commands.dice.dice_command,
     },
     "uranai_stats": {
-        "hint": "Shows your fortune record (longest consecutive record, average fortune, consecutive records of the same fortune, etc.)",
+        "hint": "Shows your fortune record",
         "function": commands.uranai.uranai_stats_command,
     },
     "うらない記録": {
