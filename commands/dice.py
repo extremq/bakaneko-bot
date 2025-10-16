@@ -30,4 +30,7 @@ async def dice_command(interaction: discord.Interaction, dice_list: str):
         message += f"- {num}d{faces}: {", ".join(map(str, rolls))} (合計: {sum(rolls)})\n"
 
     message += f"全体の合計: {total_sum}\n"
+
+    if len(message) > 2000:
+        message = message[:1997] + "..."
     await interaction.response.send_message(message)
