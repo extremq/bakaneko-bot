@@ -4,13 +4,13 @@ import discord
 from enum import Enum
 
 class Fortune(Enum):
-    DAIKICHI = (0, "大吉 :heart_eyes_cat:")
-    KICHI = (1, "吉 :smiley:")
-    SHOKICHI = (2, "小吉 :+1:")
-    HANKICHI = (3, "半吉 :slight_smile:")
-    SUEKICHI = (4, "末吉 :thinking:")
-    SUESHOKICHI = (5, "末小吉 :worried:")
-    KYOU = (6, "凶 :skull:")
+    very_good = (0, "大吉 :heart_eyes_cat:")
+    better = (1, "中吉 :smiley:")
+    nice = (2, "小吉 :+1:")
+    okay = (3, "吉 :slight_smile:")
+    future = (4, "末吉 :thinking:")
+    bad = (5, "凶 :worried:")
+    very_bad = (6, "大凶 :skull:")
 
     @classmethod
     def get_fortune(cls, index):
