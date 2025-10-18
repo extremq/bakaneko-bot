@@ -22,7 +22,7 @@ async def dice_command(interaction: discord.Interaction, dice_list: str):
         faces = int(faces)
 
         if num > 10:
-            await interaction.response.send_message(f"`{num}d{faces}`: 1回のコマンドで10回以上振ることはできません。\n")
+            await interaction.response.send_message(f"{num}d{faces}: 1回のコマンドで10回以上振ることはできません。\n")
             return 
 
         rolls = [random.randint(1, faces) for _ in range(num)]
