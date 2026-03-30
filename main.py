@@ -7,6 +7,7 @@ import sqlite3
 import commands.dice
 import commands.translate
 import commands.uranai
+import commands.hanashi
 
 load_dotenv()
 
@@ -93,6 +94,18 @@ COMMANDS = {
         "hint": "利用可能なすべてのコマンドとその説明を表示します。",
         "function": help_command,
     },
+    "talk": {
+        "hint": "Talk to an LLM.",
+        "function": commands.hanashi.talk_command,
+    },
+    "はなし": {
+        "hint": "LLMと話してみる。",
+        "function": commands.hanashi.talk_command,
+    },
+    "clear_history": {
+        "hint": "Clear LLM history",
+        "function": commands.hanashi.clear_history,
+    }
 }
 
 for k, v in COMMANDS.items():
