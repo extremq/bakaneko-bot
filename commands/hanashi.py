@@ -1,9 +1,11 @@
 import discord
 import os
-import httpx
 import datetime
 import asyncio
+import requests
 
+MODEL = "qwen/qwen3.6-plus-preview:free"
+CONTEXT = 1000000
 talk_lock = asyncio.Lock()
 conversation_history = []
 system_prompt = {
@@ -18,16 +20,33 @@ system_prompt = {
 - <:neofox_police:1284490873048010772> = 「警官の猫」
 - <:neofox_thumbsup:1284437023553486848> = 「親指を立てている猫」
 絵文字を入力する際は、〈や〉を使用しないでください。<と>のみを使用してください。忘れないでね：猫のように振る舞うこと。猫になりきったようなセリフを言うの。
+チャットの内容が要約されることがあります。その際は、自分へのメモを添えてください。
+決して他人を侮辱してはいけません。
 """,
 }
 
+def send_to_api(history, api_key):
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "model": MODEL,
+        "messages": [system_prompt] + history,
+        "reasoning": {"effort": "minimal"},
+    }
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    data = response.json()
+
+    return data
 
 async def clear_history(interaction: discord.Interaction):
     conversation_history.clear()
 
     await interaction.response.send_message("チャット履歴が削除されました。")
     return
-
 
 async def talk_command(interaction: discord.Interaction, message: str):
     if talk_lock.locked():
@@ -44,6 +63,7 @@ async def talk_command(interaction: discord.Interaction, message: str):
             )
             return
 
+        # construct user message
         formatted_message = f"{interaction.user.display_name}: {message}"
         conversation_history.append(
             {
@@ -51,30 +71,39 @@ async def talk_command(interaction: discord.Interaction, message: str):
                 "content": formatted_message[:2000],
             }
         )
-
-        if len(conversation_history) > 50:
-            conversation_history.pop(0)
-
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        data = {
-            "model": "stepfun/step-3.5-flash",
-            "messages": [system_prompt] + conversation_history,
-            "reasoning": {"effort": "minimal"},
-        }
-
+        
         try:
             await interaction.response.defer()
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, headers=headers, json=data)
-                response.raise_for_status()
-                data = response.json()
-                print(data)
+            data = send_to_api(conversation_history, api_key)
 
+            response = data["choices"][0]["message"]
+            total_tokens = data["usage"]["total_tokens"]
+            conversation_history.append(
+                {
+                    "role": "assistant",
+                    "content": response.get("content"),
+                    "reasoning_details": response.get("reasoning_details"),
+                }
+            )
+
+            # what the user will get
+            reply = response.get("content")
+            if len(reply) > 2000:
+                reply = reply[:1997] + "..."
+
+            # summarization
+            if total_tokens > CONTEXT - 20000:
+                conversation_history.append(
+                    {
+                        "role": "user",
+                        "content": f"""これまでのチャットのやり取りをすべて、日本語で要約してください。これを長期記憶として使用することになりますので、
+これがあなたの記憶である旨を説明してください。あまり詳細になりすぎないようにしてください。利用可能なトークンは{CONTEXT - total_tokens}トークンです。"""
+                    }
+                )
+
+                send_to_api(conversation_history, api_key)
                 response = data["choices"][0]["message"]
+                conversation_history.clear()
                 conversation_history.append(
                     {
                         "role": "assistant",
@@ -82,12 +111,7 @@ async def talk_command(interaction: discord.Interaction, message: str):
                         "reasoning_details": response.get("reasoning_details"),
                     }
                 )
-
-                reply = response.get("content")
-                if len(reply) > 2000:
-                    reply = reply[:1997] + "..."
-
-                await interaction.followup.send(reply)
+            await interaction.followup.send(reply)
         except Exception as e:
             await interaction.followup.send("チャットに失敗しました。")
             print(e)
