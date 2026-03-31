@@ -2,7 +2,10 @@ import discord
 import os
 import datetime
 import asyncio
-import requests
+import logging
+import httpx
+
+logger = logging.getLogger("discord")
 
 MODEL = "qwen/qwen3.6-plus-preview:free"
 CONTEXT = 1000000
@@ -27,7 +30,8 @@ system_prompt = {
 """,
 }
 
-def send_to_api(history, api_key):
+
+async def send_to_api(history, api_key, timeout):
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -38,17 +42,29 @@ def send_to_api(history, api_key):
         "messages": [system_prompt] + history,
         "reasoning": {"effort": "minimal"},
     }
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    data = response.json()
+    logger.info(data["messages"][-1])
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=data, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
 
-    return data
+        logger.info(data)
+        return data
+
 
 async def clear_history(interaction: discord.Interaction):
-    conversation_history.clear()
+    if talk_lock.locked():
+        await interaction.response.send_message(
+            "他のユーザーの応答を待っています。しばらくお待ちください。"
+        )
+        return
+    
+    async with talk_lock:
+        conversation_history.clear()
 
-    await interaction.response.send_message("チャット履歴が削除されました。")
-    return
+        await interaction.response.send_message("チャット履歴が削除されました。")
+        return
+
 
 async def talk_command(interaction: discord.Interaction, message: str):
     if talk_lock.locked():
@@ -56,7 +72,7 @@ async def talk_command(interaction: discord.Interaction, message: str):
             "他のユーザーの応答を待っています。しばらくお待ちください。"
         )
         return
-    
+
     async with talk_lock:
         api_key = os.getenv("OPEN_ROUTER_TOKEN")
         if not api_key:
@@ -73,13 +89,38 @@ async def talk_command(interaction: discord.Interaction, message: str):
                 "content": formatted_message[:2000],
             }
         )
-        
-        try:
-            await interaction.response.defer()
-            data = send_to_api(conversation_history, api_key)
 
+        await interaction.response.defer()
+        data = await send_to_api(conversation_history, api_key, timeout=30)
+
+        response = data["choices"][0]["message"]
+        total_tokens = data["usage"]["total_tokens"]
+        conversation_history.append(
+            {
+                "role": "assistant",
+                "content": response.get("content"),
+                "reasoning_details": response.get("reasoning_details"),
+            }
+        )
+
+        # what the user will get
+        reply = response.get("content")
+        if len(reply) > 2000:
+            reply = reply[:1997] + "..."
+
+        # summarization
+        if total_tokens > CONTEXT - 20000:
+            conversation_history.append(
+                {
+                    "role": "user",
+                    "content": f"""これまでのチャットのやり取りをすべて、日本語で要約してください。これを長期記憶として使用することになりますので、
+これがあなたの記憶である旨を説明してください。あまり詳細になりすぎないようにしてください。利用可能なトークンは{CONTEXT - total_tokens}トークンです。""",
+                }
+            )
+
+            data = await send_to_api(conversation_history, api_key, timeout=60)
             response = data["choices"][0]["message"]
-            total_tokens = data["usage"]["total_tokens"]
+            conversation_history.clear()
             conversation_history.append(
                 {
                     "role": "assistant",
@@ -87,33 +128,4 @@ async def talk_command(interaction: discord.Interaction, message: str):
                     "reasoning_details": response.get("reasoning_details"),
                 }
             )
-
-            # what the user will get
-            reply = response.get("content")
-            if len(reply) > 2000:
-                reply = reply[:1997] + "..."
-
-            # summarization
-            if total_tokens > CONTEXT - 20000:
-                conversation_history.append(
-                    {
-                        "role": "user",
-                        "content": f"""これまでのチャットのやり取りをすべて、日本語で要約してください。これを長期記憶として使用することになりますので、
-これがあなたの記憶である旨を説明してください。あまり詳細になりすぎないようにしてください。利用可能なトークンは{CONTEXT - total_tokens}トークンです。"""
-                    }
-                )
-
-                send_to_api(conversation_history, api_key)
-                response = data["choices"][0]["message"]
-                conversation_history.clear()
-                conversation_history.append(
-                    {
-                        "role": "assistant",
-                        "content": response.get("content"),
-                        "reasoning_details": response.get("reasoning_details"),
-                    }
-                )
-            await interaction.followup.send(reply)
-        except Exception as e:
-            await interaction.followup.send("チャットに失敗しました。")
-            print(e)
+        await interaction.followup.send(reply)

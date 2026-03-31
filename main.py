@@ -3,11 +3,31 @@ from discord import app_commands
 from dotenv import load_dotenv
 import os
 import sqlite3
+import logging
+import logging.handlers
+
 
 import commands.dice
 import commands.translate
 import commands.uranai
 import commands.hanashi
+
+logger = logging.getLogger("discord")
+logger.setLevel(logging.INFO)
+logging.getLogger("discord.http").setLevel(logging.INFO)
+
+handler = logging.handlers.RotatingFileHandler(
+    filename="discord.log",
+    encoding="utf-8",
+    maxBytes=32 * 1024 * 1024,  # 32 MiB
+    backupCount=5,  # Rotate through 5 files
+)
+dt_fmt = "%Y-%m-%d %H:%M:%S"
+formatter = logging.Formatter(
+    "[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 load_dotenv()
 
@@ -36,7 +56,7 @@ class BakaNekoBot(discord.Client):
         await self.tree.sync()
 
     async def on_ready(self):
-        print(f"Logged in as {self.user}")
+        logger.info(f"Logged in as {self.user}")
 
     def get_db_connection(self):
         return self.conn
@@ -105,10 +125,10 @@ COMMANDS = {
     "clear_history": {
         "hint": "Clear LLM history",
         "function": commands.hanashi.clear_history,
-    }
+    },
 }
 
 for k, v in COMMANDS.items():
     bot.tree.command(name=k, description=v["hint"])(v["function"])
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+bot.run(token=os.getenv("DISCORD_TOKEN"), log_handler=None)

@@ -1,6 +1,9 @@
 import discord
 import os
-import requests
+import httpx
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def translate_command(interaction: discord.Interaction, message: str, target_language: str = "JA"):
     api_key = os.getenv("DEEPL_TOKEN")
@@ -17,8 +20,8 @@ async def translate_command(interaction: discord.Interaction, message: str, targ
     }
     data = {"text": [message], "target_lang": target_language}
 
-    try:
-        response = requests.post(url, headers=headers, json=data)
+    async with httpx.Client() as client:
+        response = await client.post(url, headers=headers, json=data, timeout=30)
         response.raise_for_status()
         data = response.json()
         translated = data["translations"][0]["text"]
@@ -29,6 +32,3 @@ async def translate_command(interaction: discord.Interaction, message: str, targ
             message = message[:1997] + "..."
 
         await interaction.response.send_message(message)
-    except Exception as e:
-        await interaction.response.send_message("翻訳に失敗しました.")
-        print(e)

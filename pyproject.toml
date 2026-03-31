@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "discord-py>=2.6.4",
+    "httpx>=0.28.1",
     "python-dotenv>=1.1.1",
-    "requests>=2.32.5",
 ]
 exclude-newer = "7 days"
