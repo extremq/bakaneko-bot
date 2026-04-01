@@ -20,7 +20,7 @@ async def translate_command(interaction: discord.Interaction, message: str, targ
     }
     data = {"text": [message], "target_lang": target_language}
 
-    async with httpx.Client() as client:
+    async with httpx.AsyncClient() as client:
         response = await client.post(url, headers=headers, json=data, timeout=30)
         response.raise_for_status()
         data = response.json()
