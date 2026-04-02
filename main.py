@@ -11,6 +11,7 @@ import commands.dice
 import commands.translate
 import commands.uranai
 import commands.hanashi
+import commands.bakavc
 
 logger = logging.getLogger("discord")
 logger.setLevel(logging.INFO)
@@ -126,6 +127,10 @@ COMMANDS = {
         "hint": "Clear LLM history",
         "function": commands.hanashi.clear_history,
     },
+    "bakavc": {
+        "hint": "Text to speech",
+        "function": commands.bakavc.bakavc_command,
+    }
 }
 
 for k, v in COMMANDS.items():
