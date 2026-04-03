@@ -1,0 +1,16 @@
+services:
+  bakaneko:
+    build: .
+    container_name: bakaneko
+    depends_on:
+      - voicevox_core
+    environment:
+      - VOICEVOX_URL=http://voicevox_core:50021
+    restart: unless-stopped
+
+  voicevox_core:
+    image: voicevox/voicevox_engine:cpu-latest
+    container_name: voicevox_core
+    ports:
+      - "50021:50021"
+    restart: unless-stopped
